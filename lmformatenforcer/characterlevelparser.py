@@ -95,6 +95,24 @@ class StringParser(CharacterLevelParser):
         return not self.target_str
     
 
+class SpecialTokenParser(CharacterLevelParser):
+    """
+    Hacky way to only accept a specific special token.
+    """
+    def __init__(self, special_token_id):
+        self.special_token_id = special_token_id
+        self.used_once = False
+    
+    def add_character(self, new_character) -> CharacterLevelParser:
+        return self
+    
+    def get_allowed_characters(self) -> str:
+        return ""
+    
+    def can_end(self) -> bool:
+        return self.used_once
+
+
 class ForceStopParser(CharacterLevelParser):
     """A simple parser that forbids any characters except the stop token. Used to force stop LM operation"""
     def __init__(self, allow_whitespace: bool = False):
@@ -180,5 +198,3 @@ class SequenceParser(CharacterLevelParser):
         if all(key is not None for key in all_cache_keys):
             return ('sequence', all_cache_keys)
         return None
-
-

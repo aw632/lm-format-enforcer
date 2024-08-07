@@ -1,6 +1,7 @@
 __all__ = ['CharacterLevelParser', 
            'CharacterLevelParserConfig',
-           'StringParser', 
+           'StringParser',
+           'SpecialTokenParser',
            'RegexParser', 
            'UnionParser',
            'SequenceParser',
@@ -10,7 +11,7 @@ __all__ = ['CharacterLevelParser',
            'LMFormatEnforcerException',
            'FormatEnforcerAnalyzer',]
 
-from .characterlevelparser import CharacterLevelParser, CharacterLevelParserConfig, StringParser, UnionParser, SequenceParser
+from .characterlevelparser import CharacterLevelParser, CharacterLevelParserConfig, StringParser, UnionParser, SequenceParser, SpecialTokenParser
 from .regexparser import RegexParser
 from .jsonschemaparser import JsonSchemaParser
 from .tokenenforcer import TokenEnforcer, TokenEnforcerTokenizerData

@@ -4,7 +4,7 @@ from typing import Callable, Dict, Hashable, List, Optional, Tuple, Union
 import logging
 
 from .exceptions import LMFormatEnforcerException
-from .characterlevelparser import CharacterLevelParser, ForceStopParser, CharacterLevelParserConfig
+from .characterlevelparser import CharacterLevelParser, ForceStopParser, CharacterLevelParserConfig, SpecialTokenParser, SequenceParser
 from .tokenizerprefixtree import TokenizerPrefixTree, TokenizerPrefixTreeNode
 
 
@@ -78,7 +78,7 @@ class TokenEnforcer:
             self._compute_allowed_tokens(sent_tuple, state)
             return state.allowed_tokens
         else:
-            # Find the state that led to this node. We explicitly don't use the concept of "timestep" because of beam search        
+            # Find the state that led to this node. We explicitly don't use the concept of "timestep" because of beam search
             prev_step_state = self.prefix_states[prev_step_tuple]
             new_state = self._apply_new_characters(prev_step_state, token_sequence)
             self.prefix_states[sent_tuple] = new_state
@@ -93,9 +93,20 @@ class TokenEnforcer:
                 state.allowed_tokens = self.allowed_token_cache[cache_key]
                 return
             shortcut_key = state.parser.shortcut_key()
-            self._collect_allowed_tokens(state.parser, self.tokenizer_tree.root, allowed_tokens, shortcut_key)
-            if state.parser.can_end():
-                allowed_tokens.extend(self.eos_token_id if isinstance(self.eos_token_id, list) else [self.eos_token_id])
+            if isinstance(state.parser, SpecialTokenParser):
+                if not state.parser.used_once:
+                    allowed_tokens = [state.parser.special_token_id]
+                    state.parser.used_once = True
+                else:
+                    allowed_tokens = self.eos_token_id if isinstance(self.eos_token_id, list) else [self.eos_token_id]
+            elif isinstance(state.parser, SequenceParser) and isinstance(state.parser.parsers[0], SpecialTokenParser) and not state.parser.parsers[0].used_once:
+                special_token_parser = state.parser.parsers[0]
+                allowed_tokens = [special_token_parser.special_token_id]
+                special_token_parser.used_once = True
+            else:
+                self._collect_allowed_tokens(state.parser, self.tokenizer_tree.root, allowed_tokens, shortcut_key)
+                if state.parser.can_end():
+                    allowed_tokens.extend(self.eos_token_id if isinstance(self.eos_token_id, list) else [self.eos_token_id])
             if not allowed_tokens:
                 raise ValueError(f"Parser reached state with no allowed tokens")
             # root_state = next(state for state in self.prefix_states.values() if state.parser == self.root_parser)
@@ -154,6 +165,9 @@ class TokenEnforcer:
             prev_decoded = self.decoder(state.current_word_tokens)
             new_decoded = self.decoder(new_state.current_word_tokens)
             new_characters = new_decoded[len(prev_decoded):]
+        if isinstance(new_state.parser.parsers[0], SpecialTokenParser):
+            new_state.parser.parsers.pop(0)
+            return new_state
         for character in new_characters:
             try:
                 new_state.parser = new_state.parser.add_character(character)
@@ -162,5 +176,3 @@ class TokenEnforcer:
                 logging.debug(f"Received an invalid character '{character}', switching to ForceStopParser (Exception:{e})")
                 new_state.parser = ForceStopParser()
         return new_state
-        
-
